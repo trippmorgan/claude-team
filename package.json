@@ -1,0 +1,151 @@
+{
+  "name": "claude-team",
+  "displayName": "Claude Team - Multi-Window Collaboration",
+  "description": "Enable Claude Code instances to communicate across VS Code windows",
+  "version": "1.0.0",
+  "publisher": "trippmorgan",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Machine Learning"
+  ],
+  "activationEvents": [
+    "*"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "claude-team.sendQuery",
+        "title": "Claude Team: Send Query to Another Window",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "claude-team.showWindows",
+        "title": "Claude Team: Show Connected Windows"
+      },
+      {
+        "command": "claude-team.showLog",
+        "title": "Claude Team: Show Communication Log"
+      },
+      {
+        "command": "claude-team.broadcastContext",
+        "title": "Claude Team: Share Current Context"
+      },
+      {
+        "command": "claude-team.requestHelp",
+        "title": "Claude Team: Request Help from Team"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "claude-team.sendQuery",
+        "key": "ctrl+shift+q",
+        "mac": "cmd+shift+q"
+      },
+      {
+        "command": "claude-team.requestHelp",
+        "key": "ctrl+shift+h",
+        "mac": "cmd+shift+h"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "claude-team.sendQuery",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "claude-team.sendQuery",
+          "group": "claude-team"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "claude-team",
+          "title": "Claude Team",
+          "icon": "$(organization)"
+        }
+      ]
+    },
+    "views": {
+      "claude-team": [
+        {
+          "id": "claude-team.windows",
+          "name": "Connected Windows"
+        },
+        {
+          "id": "claude-team.messages",
+          "name": "Recent Messages"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Claude Team",
+      "properties": {
+        "claudeTeam.hubPort": {
+          "type": "number",
+          "default": 4847,
+          "description": "Port for the Claude Team hub"
+        },
+        "claudeTeam.autoRespond": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically process incoming queries with Claude"
+        },
+        "claudeTeam.windowName": {
+          "type": "string",
+          "default": "",
+          "description": "Custom name for this window in the team"
+        },
+        "claudeTeam.shareContext": {
+          "type": "boolean",
+          "default": true,
+          "description": "Share workspace context with team members"
+        },
+        "claudeTeam.preferredModel": {
+          "type": "string",
+          "enum": [
+            "claude",
+            "gemini",
+            "cli",
+            "direct-anthropic"
+          ],
+          "default": "cli",
+          "description": "Preferred model for auto-responses. 'cli' uses Claude Code, 'direct-anthropic' uses Anthropic API directly."
+        },
+        "claudeTeam.anthropicApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "API key for direct Anthropic integration."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts",
+    "build:mcp": "tsc src/claude-team-mcp-server.ts --outDir out --declaration --esModuleInterop"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.5.0",
+    "ws": "^8.14.0"
+  },
+  "devDependencies": {
+    "@types/node": "^18.x",
+    "@types/vscode": "^1.85.0",
+    "@types/ws": "^8.5.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "typescript": "^5.3.0"
+  }
+}

@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# VS Code packaged extension
+*.vsix
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor directories
+.idea/
+*.swp
+*.swo
+
+# Test files
+test_*.js
+
+# Shared context runtime files
+.claude-team/queries/
+.claude-team/responses/
+
+# Environment
+.env
+.env.local

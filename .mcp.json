@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "claude-team": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/Users/trippmorgan/claude-team/out/claude-team-mcp-server.js"],
+      "env": {
+        "TEAM_HUB_PORT": "4847"
+      }
+    }
+  }
+}
