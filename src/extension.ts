@@ -192,6 +192,84 @@ class ClaudeTeamHub {
     this.log('[CONSTRUCTOR] Created, windowId=' + this.windowId);
   }
 
+  /**
+   * Find a window by target string using fuzzy matching
+   * Supports: exact ID, name match, ID prefix match
+   */
+  private findWindowByTarget(target: string): ClaudeWindow | undefined {
+    // Exact ID match
+    if (this.windows.has(target)) {
+      return this.windows.get(target);
+    }
+
+    // Try matching by name or ID prefix
+    for (const [id, window] of this.windows) {
+      // Skip MCP pseudo-window
+      if (id === 'claude-code-mcp') continue;
+
+      // Match by window name (case-insensitive)
+      if (window.name.toLowerCase() === target.toLowerCase()) {
+        this.log(`[FIND-WINDOW] Matched by name: "${target}" -> "${id}"`);
+        return window;
+      }
+
+      // Match by ID prefix (e.g., "claude-team" matches "claude-team-x7k2")
+      if (id.toLowerCase().startsWith(target.toLowerCase())) {
+        this.log(`[FIND-WINDOW] Matched by ID prefix: "${target}" -> "${id}"`);
+        return window;
+      }
+
+      // Match by project path basename
+      if (window.projectPath) {
+        const pathBasename = window.projectPath.split('/').pop() || '';
+        if (pathBasename.toLowerCase() === target.toLowerCase()) {
+          this.log(`[FIND-WINDOW] Matched by project path: "${target}" -> "${id}"`);
+          return window;
+        }
+      }
+    }
+
+    this.log(`[FIND-WINDOW] No match found for: "${target}"`);
+    return undefined;
+  }
+
+  /**
+   * Check if target refers to this hub window (self-routing)
+   */
+  private isTargetingSelf(target: string): boolean {
+    if (target === this.windowId) return true;
+
+    const workspaceName = vscode.workspace.name || '';
+    if (target.toLowerCase() === workspaceName.toLowerCase()) return true;
+
+    if (this.windowId.toLowerCase().startsWith(target.toLowerCase())) return true;
+
+    return false;
+  }
+
+  /**
+   * Register or update a window, deduplicating by workspace path
+   */
+  private registerOrUpdateWindow(entry: ClaudeWindow, socket: WebSocket): void {
+    // Check for existing window with same workspace path (deduplication)
+    if (entry.projectPath) {
+      for (const [existingId, existingWindow] of this.windows) {
+        if (existingId !== entry.id &&
+            existingId !== 'claude-code-mcp' &&
+            existingWindow.projectPath === entry.projectPath) {
+          // Same workspace - remove old entry, keep new one
+          this.log(`[REGISTER] Deduplicating: removing old "${existingId}" for workspace "${entry.projectPath}"`);
+          this.windows.delete(existingId);
+          break;
+        }
+      }
+    }
+
+    entry.socket = socket;
+    this.windows.set(entry.id, entry);
+    this.log(`[REGISTER] Window registered: ${entry.id} (${entry.name})`);
+  }
+
   async initialize() {
     this.log('========== INIT START ==========');
     this.outputChannel.show(true);
@@ -298,18 +376,18 @@ class ClaudeTeamHub {
     }
     switch (msg.type) {
       case 'status':
-        // CRITICAL: Store socket with explicit verification logging
-        this.log('[STATUS] Storing window: ' + msg.fromWindow);
+        // Register window with deduplication
+        this.log('[STATUS] Registering window: ' + msg.fromWindow);
         this.log('[STATUS] Socket param exists: ' + !!socket + ', readyState: ' + (socket?.readyState ?? 'N/A'));
         const statusEntry: ClaudeWindow = {
           id: msg.fromWindow,
           name: msg.content,
           projectPath: msg.metadata?.projectContext || '',
           status: 'idle',
-          capabilities: [],
-          socket
+          capabilities: []
         };
-        this.windows.set(msg.fromWindow, statusEntry);
+        // Use deduplicating registration
+        this.registerOrUpdateWindow(statusEntry, socket);
         // Verify storage worked
         const verifyEntry = this.windows.get(msg.fromWindow);
         this.log('[STATUS] Verify: stored socket exists=' + !!verifyEntry?.socket + ', readyState=' + (verifyEntry?.socket?.readyState ?? 'N/A'));
@@ -337,23 +415,29 @@ class ClaudeTeamHub {
           this.log('[QUERY] Source is MCP, routing to windows...');
           // MCP query - route to target window or all windows (excluding MCP)
           if (msg.toWindow) {
-            // Specific target
-            const target = this.windows.get(msg.toWindow);
-            this.log('[QUERY] Target: ' + msg.toWindow + ' | found=' + !!target + ' | hasSocket=' + !!target?.socket + ' | readyState=' + (target?.socket?.readyState ?? 'N/A'));
-            if (target?.socket && target.socket.readyState === WebSocket.OPEN) {
-              try {
-                this.log('[QUERY] >>> Sending to target window');
-                target.socket.send(JSON.stringify(msg));
-                this.log('[QUERY] ✓ Sent to target');
-              } catch (e: any) {
-                this.log('[QUERY] !!! Send error to target: ' + e.message);
-                this.log('[QUERY] >>> Handling LOCALLY (send failed)');
+            // Check if targeting self (hub window)
+            if (this.isTargetingSelf(msg.toWindow)) {
+              this.log('[QUERY] Target is self (hub window), handling locally');
+              this.handleIncomingQuery(msg);
+            } else {
+              // Use fuzzy matching to find target window
+              const target = this.findWindowByTarget(msg.toWindow);
+              this.log('[QUERY] Target: ' + msg.toWindow + ' | found=' + !!target + ' | hasSocket=' + !!target?.socket + ' | readyState=' + (target?.socket?.readyState ?? 'N/A'));
+              if (target?.socket && target.socket.readyState === WebSocket.OPEN) {
+                try {
+                  this.log('[QUERY] >>> Sending to target window: ' + target.id);
+                  target.socket.send(JSON.stringify(msg));
+                  this.log('[QUERY] ✓ Sent to target');
+                } catch (e: any) {
+                  this.log('[QUERY] !!! Send error to target: ' + e.message);
+                  this.log('[QUERY] >>> Handling LOCALLY (send failed)');
+                  this.handleIncomingQuery(msg);
+                }
+              } else {
+                // Target not found or socket not open - handle locally
+                this.log('[QUERY] >>> Handling LOCALLY (target not found or socket not open)');
                 this.handleIncomingQuery(msg);
               }
-            } else {
-              // Target not found or socket not open - handle locally
-              this.log('[QUERY] >>> Handling LOCALLY (target not found or socket not open)');
-              this.handleIncomingQuery(msg);
             }
           } else {
             // Broadcast to all real windows (not MCP)
@@ -382,7 +466,13 @@ class ClaudeTeamHub {
           // Regular window query
           this.log('[QUERY] Source is regular window');
           if (msg.toWindow) {
-            this.windows.get(msg.toWindow)?.socket?.send(JSON.stringify(msg));
+            // Use fuzzy matching for regular window queries too
+            const target = this.findWindowByTarget(msg.toWindow);
+            if (target?.socket && target.socket.readyState === WebSocket.OPEN) {
+              target.socket.send(JSON.stringify(msg));
+            } else {
+              this.log('[QUERY] Target not found for regular window query: ' + msg.toWindow);
+            }
           } else {
             this.broadcast(msg, msg.fromWindow);
           }
@@ -416,8 +506,8 @@ class ClaudeTeamHub {
 
         // Try fallback if primary path failed
         if (!responseSent && msg.toWindow) {
-          this.log('[RESPONSE] Trying fallback via windows map for: ' + msg.toWindow);
-          const targetWindow = this.windows.get(msg.toWindow);
+          this.log('[RESPONSE] Trying fallback via fuzzy window lookup for: ' + msg.toWindow);
+          const targetWindow = this.findWindowByTarget(msg.toWindow);
           this.log('[RESPONSE] Target window entry: ' + (targetWindow ? 'found' : 'NOT FOUND'));
           if (targetWindow) {
             this.log('[RESPONSE] Target socket: ' + (targetWindow.socket ? 'exists, state=' + targetWindow.socket.readyState : 'NULL'));
