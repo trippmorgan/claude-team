@@ -96,8 +96,25 @@
         },
         "claudeTeam.autoRespond": {
           "type": "boolean",
-          "default": false,
-          "description": "Automatically process incoming queries with Claude"
+          "default": true,
+          "description": "Enable automatic responses to incoming queries"
+        },
+        "claudeTeam.autoRespondMode": {
+          "type": "string",
+          "enum": [
+            "off",
+            "context-only",
+            "smart",
+            "full"
+          ],
+          "default": "smart",
+          "enumDescriptions": [
+            "Disable auto-responses",
+            "Only respond with workspace context (fast, no AI calls)",
+            "Use query classification to choose appropriate response strategy",
+            "Always try to provide comprehensive responses including AI"
+          ],
+          "description": "Auto-response mode: 'off' disables, 'context-only' provides fast context responses, 'smart' uses query classification, 'full' always uses AI"
         },
         "claudeTeam.windowName": {
           "type": "string",
