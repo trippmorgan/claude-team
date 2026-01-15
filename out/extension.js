@@ -297,7 +297,76 @@ class ClaudeTeamHub {
     async startHub() {
         this.log('[HUB] Starting...');
         this.isHub = true;
-        this.server = http.createServer();
+        // HTTP server handles both WebSocket upgrades AND webhook POSTs
+        this.server = http.createServer((req, res) => {
+            // CORS headers for cross-origin requests
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+            res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+            if (req.method === 'OPTIONS') {
+                res.writeHead(200);
+                res.end();
+                return;
+            }
+            // Webhook endpoint for Chrome extension events
+            if (req.method === 'POST' && req.url === '/webhook') {
+                let body = '';
+                req.on('data', chunk => body += chunk);
+                req.on('end', () => {
+                    try {
+                        const event = JSON.parse(body);
+                        this.log('[WEBHOOK] Received event from: ' + (event.source || 'unknown'));
+                        this.log('[WEBHOOK] Event: ' + JSON.stringify(event).substring(0, 200));
+                        // Broadcast to all connected windows
+                        const msg = {
+                            id: 'webhook-' + Date.now(),
+                            fromWindow: event.source || 'chrome-extension',
+                            type: 'broadcast',
+                            content: '[TELEMETRY] ' + JSON.stringify(event.event || event),
+                            timestamp: Date.now()
+                        };
+                        this.broadcast(msg);
+                        this.messagesProvider.addMessage(msg);
+                        // Show notification
+                        vscode.window.showInformationMessage('[Chrome] Event from ' + (event.source || 'extension'));
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ received: true, id: msg.id }));
+                    }
+                    catch (e) {
+                        this.log('[WEBHOOK] Parse error: ' + e.message);
+                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ error: e.message }));
+                    }
+                });
+                return;
+            }
+            // Health check endpoint
+            if (req.method === 'GET' && req.url === '/health') {
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                    status: 'ok',
+                    hub: true,
+                    windows: this.windows.size,
+                    windowList: Array.from(this.windows.keys())
+                }));
+                return;
+            }
+            // Status endpoint
+            if (req.method === 'GET' && req.url === '/status') {
+                const windowData = Array.from(this.windows.values()).map(w => ({
+                    id: w.id,
+                    name: w.name,
+                    projectPath: w.projectPath,
+                    status: w.status
+                }));
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ windows: windowData }));
+                return;
+            }
+            // Default: 404
+            res.writeHead(404);
+            res.end('Not found');
+        });
         this.wss = new ws_1.WebSocketServer({ server: this.server });
         this.wss.on('connection', (socket) => {
             let clientId = '';

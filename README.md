@@ -1,6 +1,55 @@
 # Claude Team - Multi-Agent Collaboration System
 
-A VS Code extension enabling distributed Claude Code instances to communicate via WebSocket, creating a collaborative multi-agent development environment.
+Enable multiple Claude Code instances to talk to each other across VS Code windows.
+
+---
+
+## Quickstart
+
+### 1. Install Extension
+```bash
+code --install-extension claude-team-1.0.0.vsix
+```
+
+### 2. Add MCP Server to Claude Code
+```bash
+claude mcp add --transport stdio claude-team -- node /Users/trippmorgan/claude-team/out/claude-team-mcp-server.js --scope user
+```
+
+### 3. Reload
+Run `/mcp` in Claude Code or restart.
+
+---
+
+## Simple Commands
+
+Once set up, you have these tools:
+
+| Tool | What it does | Example |
+|------|--------------|---------|
+| `get_team_status` | See who's online | "Check team status" |
+| `ask_team_claude` | Ask another Claude a question | "Ask the backend team about the API" |
+| `share_with_team` | Broadcast an update | "Tell the team I finished the login feature" |
+| `request_code_review` | Get code reviewed | "Review this function for bugs" |
+
+### Quick Examples
+
+**Ask a question:**
+```
+Use ask_team_claude to ask: "What database are you using?"
+```
+
+**Share an update:**
+```
+Use share_with_team to say: "Auth module complete" with category "update"
+```
+
+**Check who's connected:**
+```
+Use get_team_status
+```
+
+---
 
 ## System Status (Verified 2025-01-12)
 

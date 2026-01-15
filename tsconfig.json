@@ -18,6 +18,9 @@
     },
     "exclude": [
         "node_modules",
-        ".vscode-test"
+        ".vscode-test",
+        "mcp-servers",
+        "orchestration",
+        "chrome-extension"
     ]
 }

@@ -1,0 +1,23 @@
+{
+  "name": "claude-team-orchestration",
+  "version": "1.0.0",
+  "description": "Multi-agent orchestration layer for Claude Team",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "orchestrate": "tsx src/cli.ts"
+  },
+  "dependencies": {
+    "ws": "^8.14.0",
+    "commander": "^11.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/ws": "^8.5.0",
+    "typescript": "^5.3.0",
+    "tsx": "^4.0.0"
+  }
+}

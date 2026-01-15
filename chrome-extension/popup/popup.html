@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Claude Team Bridge</title>
+  <style>
+    body {
+      width: 320px;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      color: #333;
+    }
+
+    h1 {
+      font-size: 18px;
+      margin: 0 0 16px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .logo {
+      width: 24px;
+      height: 24px;
+      background: linear-gradient(135deg, #7c3aed, #a855f7);
+      border-radius: 6px;
+    }
+
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      margin-bottom: 16px;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .status-dot.connected {
+      background: #10b981;
+      box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+    }
+
+    .status-dot.disconnected {
+      background: #ef4444;
+    }
+
+    .status-text {
+      flex: 1;
+    }
+
+    .section {
+      margin-bottom: 16px;
+    }
+
+    .section-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #666;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #eee;
+    }
+
+    .info-row:last-child {
+      border-bottom: none;
+    }
+
+    .info-label {
+      color: #666;
+    }
+
+    .info-value {
+      font-weight: 500;
+      color: #333;
+    }
+
+    .info-value.mono {
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 12px;
+    }
+
+    button {
+      width: 100%;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button.primary {
+      background: #7c3aed;
+      color: white;
+    }
+
+    button.primary:hover {
+      background: #6d28d9;
+    }
+
+    button.secondary {
+      background: #e5e7eb;
+      color: #374151;
+      margin-top: 8px;
+    }
+
+    button.secondary:hover {
+      background: #d1d5db;
+    }
+
+    .tabs-list {
+      max-height: 150px;
+      overflow-y: auto;
+      border: 1px solid #eee;
+      border-radius: 6px;
+      padding: 8px;
+    }
+
+    .tab-item {
+      padding: 6px 8px;
+      font-size: 12px;
+      border-radius: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .tab-item:hover {
+      background: #f3f4f6;
+    }
+
+    .tab-item.active {
+      background: #ede9fe;
+      color: #7c3aed;
+    }
+
+    .footer {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #eee;
+      font-size: 11px;
+      color: #999;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <h1>
+    <div class="logo"></div>
+    Claude Team Bridge
+  </h1>
+
+  <div class="status">
+    <div class="status-dot" id="statusDot"></div>
+    <div class="status-text" id="statusText">Checking...</div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Connection</div>
+    <div class="info-row">
+      <span class="info-label">Bridge Server</span>
+      <span class="info-value">localhost:8765</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">Claude Hub</span>
+      <span class="info-value">localhost:4847</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">Extension ID</span>
+      <span class="info-value mono" id="extensionId">-</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Open Tabs</div>
+    <div class="tabs-list" id="tabsList">
+      Loading...
+    </div>
+  </div>
+
+  <button class="primary" id="captureBtn">Capture Current Page</button>
+  <button class="secondary" id="reconnectBtn">Reconnect to Bridge</button>
+
+  <div class="footer">
+    Claude Team v1.0.0 | Browser Bridge
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "Claude Team Browser Bridge",
+  "version": "1.0.0",
+  "description": "Connect Claude Code to your browser for automated testing and data capture",
+  "permissions": [
+    "tabs",
+    "activeTab",
+    "scripting",
+    "storage",
+    "webNavigation"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background/service-worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content/content-script.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html"
+  },
+  "externally_connectable": {
+    "matches": ["http://localhost/*", "https://localhost/*"]
+  }
+}
