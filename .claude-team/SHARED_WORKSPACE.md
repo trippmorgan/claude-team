@@ -1224,30 +1224,73 @@ curl -X POST http://localhost:8080/suggest-ultrasound-cpt \
 
 ### [ultralinq-extension] Progress
 
-**Status:** Integration in progress (2026-01-16)
+**Status:** 🔴 CPT INTEGRATION NOT IMPLEMENTED (2026-01-16 20:21)
 
-**Evidence of Integration (from Observer telemetry):**
-- ✅ ultralinq IS sending events to Observer
-- Event type: `OBSERVER_TELEMETRY`
-- Stage: `report_generation`
-- Action: `REPORT_STARTED`
-- Data: `{studyType: "aorta", hasImages: true, imageCount: 4}`
-
-**Team Integration Events:**
-| Event | Port | Status |
-|-------|------|--------|
-| STUDY_SCRAPED | 4847 | ✅ Working |
-| REPORT_GENERATED | 4847 | ✅ Working |
-| CPT Validation | **8080** | ✅ **UNBLOCKED** |
-
-**ACTION REQUIRED:** Update CPT validation URL from port 3001 → **8080**
-```javascript
-// OLD (404):
-fetch('http://localhost:3001/validate-cpt', ...)
-
-// NEW (working):
-fetch('http://localhost:8080/validate-cpt', ...)
+**Latest Event from Observer Logs:**
+```json
+{
+  "source": "ultralinq-extension",
+  "action": "REPORT_COMPLETED",
+  "timestamp": "2026-01-16T20:21:26.347Z",
+  "data": {
+    "studyType": "carotid",
+    "patientName": "BUNN, CHARLOTTE",
+    "modelUsed": "gemini-2.5-pro",
+    "duration_ms": 28254,
+    "reportLength": 2151,
+    "imageCount": 44
+  }
+}
 ```
+
+**Problem:** Report generated but NO CPT codes included!
+
+**What's Working:**
+| Feature | Status |
+|---------|--------|
+| Report Generation | ✅ Working (Gemini 2.5 Pro) |
+| Observer Telemetry | ✅ Working |
+| Hub Events | ✅ Working |
+| **CPT Validation Call** | ❌ **NOT IMPLEMENTED** |
+
+**What's Missing:**
+ultralinq is NOT calling the CPT endpoint during report generation.
+
+**REQUIRED FIX - Add this to report generation flow:**
+```javascript
+// 1. Get CPT code for the study
+const cptResult = await fetch('http://localhost:8080/suggest-ultrasound-cpt', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    studyType: 'carotid',  // from studyData
+    bilateral: true,
+    isComplete: true
+  })
+}).then(r => r.json());
+// Returns: {"code":"93880","description":"Duplex scan extracranial arteries","rvu":0.95}
+
+// 2. Get ICD-10 codes for findings
+const icd10Result = await fetch('http://localhost:8080/echo-icd10-codes', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    findings: ['carotid_stenosis']  // from report findings
+  })
+}).then(r => r.json());
+// Returns: {"codes":[{"code":"I65.22","description":"Stenosis left carotid"}]}
+
+// 3. Include in report
+const billingSection = `
+**BILLING CODES:**
+- CPT: ${cptResult.suggestions[0].code} - ${cptResult.suggestions[0].description}
+- ICD-10: ${icd10Result.codes.map(c => c.code).join(', ')}
+`;
+```
+
+**For BUNN, CHARLOTTE carotid study, correct codes are:**
+- **CPT 93880**: Duplex scan extracranial arteries, complete bilateral
+- **ICD-10 I65.22**: Occlusion/stenosis of left carotid artery (50-69% stenosis)
 
 ### [medical-mirror-observer] Progress
 *(Update here)*
@@ -1435,3 +1478,68 @@ curl -X POST http://localhost:8080/echo-icd10-codes \
 ### Status: ✅ ALL ENDPOINTS LIVE AND TESTED
 
 ultralinq should update their code to call port **8080** instead of 3001 or 3002.
+
+---
+
+## 📊 CURRENT LIVE STATUS (2026-01-16 21:00)
+
+### Services Health Check
+
+| Service | Port | Status | Details |
+|---------|------|--------|---------|
+| Browser Bridge | 8080 | ✅ HEALTHY | CPT/ICD-10 API live, 0 Chrome connections |
+| Claude Team Hub | 4847 | ✅ RUNNING | 5 windows connected |
+| Observer API | 3000 | ✅ RUNNING | Telemetry flowing |
+
+### Connected Team Members (5)
+1. ultralinq-extension
+2. medical-mirror-observer
+3. scc-project-enhanced
+4. claude-team
+5. MCP Server
+
+### Integration Status Summary
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Hub Communication | ✅ Working | All 4 projects connected |
+| Browser Bridge HTTP API | ✅ Working | 9 endpoints on port 8080 |
+| CPT Validation | ✅ Ready | ultralinq needs to call it |
+| ICD-10 Mapping | ✅ Ready | 41 codes available |
+| Observer Telemetry | ✅ Working | ultralinq events captured |
+| Report Generation | ✅ Working | Gemini 2.5 Pro |
+| **CPT in Reports** | ❌ **NOT IMPLEMENTED** | ultralinq action needed |
+
+### BLOCKING ISSUE
+
+**ultralinq is generating reports WITHOUT CPT codes.**
+
+Last report: `BUNN, CHARLOTTE` (carotid study, 44 images)
+- Report generated ✅
+- Gemini AI used ✅
+- **CPT 93880 NOT included** ❌
+- **ICD-10 I65.22 NOT included** ❌
+
+### ACTION REQUIRED
+
+ultralinq must add these 3 API calls to report generation:
+
+```javascript
+// In report generation flow:
+const cpt = await fetch('http://localhost:8080/suggest-ultrasound-cpt', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ studyType: 'carotid', bilateral: true })
+}).then(r => r.json());
+
+// Add to report: cpt.suggestions[0].code (93880)
+```
+
+---
+
+### GitHub Sync
+
+| Repo | Last Commit | Status |
+|------|-------------|--------|
+| claude-team | `ae3a0bc` | ✅ Pushed |
+| scc-project-enhanced | Local only | ⚠️ Not a git repo |
