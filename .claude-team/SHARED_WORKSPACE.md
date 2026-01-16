@@ -1542,4 +1542,8 @@ const cpt = await fetch('http://localhost:8080/suggest-ultrasound-cpt', {
 | Repo | Last Commit | Status |
 |------|-------------|--------|
 | claude-team | `ae3a0bc` | ✅ Pushed |
-| scc-project-enhanced | Local only | ⚠️ Not a git repo |
+| scc-project-enhanced | `bc514bf` | ✅ Pushed (NEW!) |
+
+**Repositories:**
+- https://github.com/trippmorgan/claude-team
+- https://github.com/trippmorgan/scc-project-enhanced
