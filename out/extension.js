@@ -742,10 +742,14 @@ class ClaudeTeamHub {
     handleSharedResponse(r) { this.log('Shared response: ' + r.id); }
     registerWindow() {
         const msg = { id: this.windowId + '-' + Date.now(), fromWindow: this.windowId, type: 'status', content: vscode.workspace.name || 'Unnamed', timestamp: Date.now(), metadata: { projectContext: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath } };
-        if (this.isHub)
+        if (this.isHub) {
             this.windows.set(this.windowId, { id: this.windowId, name: msg.content, projectPath: msg.metadata.projectContext, status: 'idle', capabilities: [] });
-        else
+            // Update sidebar after hub registers itself
+            this.broadcastWindowList();
+        }
+        else {
             this.socket?.send(JSON.stringify(msg));
+        }
     }
     broadcast(msg, excludeId) {
         this.log('[BROADCAST] Broadcasting msg type=' + msg.type + ', excluding=' + (excludeId || 'none'));

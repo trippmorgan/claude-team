@@ -774,8 +774,13 @@ class ClaudeTeamHub {
 
   private registerWindow() {
     const msg: TeamMessage = { id: this.windowId + '-' + Date.now(), fromWindow: this.windowId, type: 'status', content: vscode.workspace.name || 'Unnamed', timestamp: Date.now(), metadata: { projectContext: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath } };
-    if (this.isHub) this.windows.set(this.windowId, { id: this.windowId, name: msg.content, projectPath: msg.metadata!.projectContext!, status: 'idle', capabilities: [] });
-    else this.socket?.send(JSON.stringify(msg));
+    if (this.isHub) {
+      this.windows.set(this.windowId, { id: this.windowId, name: msg.content, projectPath: msg.metadata!.projectContext!, status: 'idle', capabilities: [] });
+      // Update sidebar after hub registers itself
+      this.broadcastWindowList();
+    } else {
+      this.socket?.send(JSON.stringify(msg));
+    }
   }
 
   private broadcast(msg: TeamMessage, excludeId?: string) {
