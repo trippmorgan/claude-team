@@ -1680,6 +1680,78 @@ result: {
 
 ---
 
+## 📊 LIVE STATUS UPDATE (2026-01-21 12:00)
+
+### Hub Status
+```
+Hub: localhost:4847
+├── surgical-command-center (idle)
+├── claude-team (idle)
+├── ORCommandCenter (idle)
+└── server1-claude-code (PlaudAI) ✅ CONNECTED!
+```
+
+### Service Health Check
+
+| Service | URL | Status | Notes |
+|---------|-----|--------|-------|
+| Claude Team Hub | localhost:4847 | ✅ HEALTHY | 4 windows connected |
+| SCC Backend | 100.75.237.36:3001 | ⚠️ DB AUTH FAIL | Backend up, DB password issue |
+| PlaudAI API | 100.75.237.36:8001 | ✅ HEALTHY | Gemini 2.0 Flash configured |
+| VAI Service | 100.75.237.36:8001 | ✅ HEALTHY | Voice processing ready |
+
+### Architecture Clarification
+
+```
+ORCC Frontend          PlaudAI (8001)           SCC (3001)
+─────────────          ────────────────         ──────────
+api-client.js  ───►    /api/patients    ◄───►   PostgreSQL
+                       /api/procedures           (DB auth failing)
+                       /api/vai/*       ───►    Voice processing
+```
+
+**ORCC connects to PlaudAI (port 8001), NOT SCC (port 3001)**
+- PlaudAI has its own PostgreSQL connection that works
+- SCC's PostgreSQL connection has auth issues (`scc_user` password)
+- Both share the same database on Server1
+
+### Database Contents (via PlaudAI)
+
+**Patients:** 10 records (Thompson, Johnson, Pringle, Brown, Davis, Martinez, etc.)
+**Procedures:** 24 records (mostly Lower Extremity Angiograms)
+**Statuses:** ready, near_ready, workup, hold, scheduled
+
+### Larry Taylor - NOT IN DATABASE YET
+
+Need to create Larry Taylor via PlaudAI API:
+```bash
+curl -X POST http://100.75.237.36:8001/api/patients \
+  -H "Content-Type: application/json" \
+  -d '{
+    "mrn": "32016089",
+    "first_name": "Larry",
+    "last_name": "Taylor",
+    "date_of_birth": "1954-10-28",
+    "age": 71,
+    "gender": "male"
+  }'
+```
+
+### Action Items Updated
+
+**BLOCKING: SCC DB Auth**
+- [ ] Fix `scc_user` password on Server1 PostgreSQL
+- [ ] Or: Use PlaudAI API exclusively (it works)
+
+**ORCC Integration:**
+- [x] API client created (js/api-client.js) - points to PlaudAI:8001
+- [x] v2 page updated for live data
+- [ ] Create Larry Taylor patient in database
+- [ ] Create Larry Taylor procedure record
+- [ ] Test full workflow through UI
+
+---
+
 ## 📊 CURRENT LIVE STATUS (2026-01-16 21:00)
 
 ### Services Health Check
@@ -1746,3 +1818,265 @@ const cpt = await fetch('http://localhost:8080/suggest-ultrasound-cpt', {
 **Repositories:**
 - https://github.com/trippmorgan/claude-team
 - https://github.com/trippmorgan/scc-project-enhanced
+
+---
+
+## 🚨 MAJOR ARCHITECTURE CHANGE (2026-01-21)
+
+### SCC Node Server → RETIREMENT | PlaudAI → PROMOTED
+
+**Decision:** Retire SCC Node server (port 3001) and consolidate all backend functionality into PlaudAI (port 8001) on Server1.
+
+**Reason:**
+1. SCC Node has broken database authentication (`scc_user` password incorrect)
+2. PlaudAI already has working PostgreSQL connection
+3. PlaudAI already serves `/api/patients`, `/api/procedures`
+4. ORCC is the new UI - we don't need SCC's React dashboard
+5. Simpler architecture = fewer failure points
+
+### NEW Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                        NEW UNIFIED ARCHITECTURE                                  │
+│                        Server1 (100.75.237.36)                                  │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  PlaudAI (Port 8001) - SINGLE BACKEND                                           │
+│  ──────────────────────────────────────                                         │
+│  EXISTING:                           MIGRATE FROM SCC:                          │
+│  ├── /api/patients                   ├── Shadow Coder endpoints                 │
+│  ├── /api/patients/{mrn}             ├── WebSocket server (/ws)                 │
+│  ├── /api/procedures                 ├── /api/tasks (NEW)                       │
+│  ├── /api/procedures/{id}            ├── /api/planning/{caseId} (NEW)           │
+│  ├── /api/orcc/status                └── /api/vqi/{caseId} (NEW - Phase 3)      │
+│  ├── /api/parse (AI)                                                            │
+│  ├── /api/synopsis (AI)                                                         │
+│  ├── /api/extract (AI)                                                          │
+│  └── /health                                                                     │
+│                                                                                  │
+│  PostgreSQL (Port 5432) - UNCHANGED                                             │
+│  └── surgical_command_center database                                           │
+│      ├── patients (28 records)                                                  │
+│      ├── procedures (24 records)                                                │
+│      ├── audit_logs (897 records - HIPAA)                                       │
+│      └── 24 total tables                                                        │
+│                                                                                  │
+│  SCC Node (Port 3001) - RETIRED                                                 │
+│  └── sudo systemctl stop scc && sudo systemctl disable scc                      │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    │ HTTP/WebSocket
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              ORCC Frontend                                       │
+│                     /home/tripp/ORCommandCenter                                 │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  Static HTML → (Future: React/Vite)                                             │
+│  ├── Patient Lists (surgical-command-center-page1.html)                         │
+│  ├── Task Manager (surgical-command-center-tasks.html)                          │
+│  ├── Workspaces                                                                 │
+│  │   ├── PAD (surgical-command-center-workspace.html)                           │
+│  │   ├── Carotid (workspace-carotid.html)                                       │
+│  │   ├── Aortic (workspace-aortic-aneurysm.html)                                │
+│  │   └── Venous (workspace-venous.html)                                         │
+│  └── js/api-client.js → http://100.75.237.36:8001/api/*                         │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Migration Task List
+
+#### Phase 1: PlaudAI Backend Expansion (Server1)
+**Owner:** Server1 Claude (PlaudAI)
+
+| Task | Endpoint | Status |
+|------|----------|--------|
+| P1-1 | Add `/api/tasks` CRUD | ⬜ Pending |
+| P1-2 | Add `/api/tasks/patient/{patientId}` | ⬜ Pending |
+| P1-3 | Add `/api/planning/{caseId}` CRUD | ⬜ Pending |
+| P1-4 | Add WebSocket server (`/ws`) | ⬜ Pending |
+| P1-5 | Migrate Shadow Coder to `/api/shadow-coder/*` | ⬜ Pending |
+| P1-6 | Add `tasks` table to PostgreSQL | ⬜ Pending |
+| P1-7 | Add `case_planning` table to PostgreSQL | ⬜ Pending |
+
+**Database Schema for New Tables:**
+```sql
+-- tasks table
+CREATE TABLE tasks (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  patient_id      UUID REFERENCES patients(id),
+  case_id         UUID,  -- References procedures
+  title           VARCHAR(200) NOT NULL,
+  description     TEXT,
+  task_type       VARCHAR(20),  -- 'call', 'schedule', 'order', 'review'
+  due_date        DATE,
+  status          VARCHAR(20) DEFAULT 'pending',
+  urgency         VARCHAR(20) DEFAULT 'normal',
+  completed_at    TIMESTAMP,
+  created_at      TIMESTAMP DEFAULT NOW(),
+  updated_at      TIMESTAMP DEFAULT NOW()
+);
+
+-- case_planning table
+CREATE TABLE case_planning (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  procedure_id    UUID UNIQUE,
+  vessel_data     JSONB,      -- Full vessel status map from ORCC
+  procedure_params JSONB,     -- side, rutherford, access, anesthesia
+  interventions   JSONB,      -- Array of planned interventions
+  created_at      TIMESTAMP DEFAULT NOW(),
+  updated_at      TIMESTAMP DEFAULT NOW()
+);
+```
+
+#### Phase 2: ORCC Frontend Update
+**Owner:** ORCC Claude (this workstation)
+
+| Task | File | Status |
+|------|------|--------|
+| O2-1 | Update `js/api-client.js` to point to 8001 | ⬜ Pending |
+| O2-2 | Add WebSocket client for real-time sync | ⬜ Pending |
+| O2-3 | Implement TaskAPI in api-client | ⬜ Pending |
+| O2-4 | Implement PlanningAPI in api-client | ⬜ Pending |
+| O2-5 | Test patient list with live PlaudAI data | ⬜ Pending |
+| O2-6 | Test workspace save via PlaudAI API | ⬜ Pending |
+
+#### Phase 3: SCC Node Retirement
+**Owner:** Server1 Claude
+
+| Task | Command | Status |
+|------|---------|--------|
+| R3-1 | Stop SCC Node service | `sudo systemctl stop scc` | ⬜ Pending |
+| R3-2 | Disable SCC Node service | `sudo systemctl disable scc` | ⬜ Pending |
+| R3-3 | Archive SCC codebase | Keep for reference | ⬜ Pending |
+| R3-4 | Update documentation | Remove SCC references | ⬜ Pending |
+
+### Port Map (Post-Migration)
+
+| Port | Service | Location | Status |
+|------|---------|----------|--------|
+| 8001 | **PlaudAI (Primary Backend)** | Server1 | ✅ Active |
+| 5432 | PostgreSQL | Server1 | ✅ Active |
+| 4847 | Claude Team Hub | Local | ✅ Active |
+| 8080 | Browser Bridge (CPT/ICD-10) | Local | ✅ Active |
+| 3001 | ~~SCC Node~~ | Server1 | 🚫 **RETIRED** |
+
+### Communication Protocol
+
+**For Server1 Claude (PlaudAI):**
+```
+Message received. Implementing Phase 1 tasks.
+Tasks table and case_planning table will be created.
+WebSocket server will be added to PlaudAI.
+Shadow Coder migration in progress.
+```
+
+**For ORCC Claude:**
+```
+Waiting for Phase 1 completion before starting Phase 2.
+api-client.js already points to 8001 - will verify and enhance.
+```
+
+### Questions for Team
+
+1. **Shadow Coder:** Should it become a separate microservice or be embedded in PlaudAI?
+2. **WebSocket Protocol:** Use same message format as SCC had, or design new?
+3. **VQI Integration:** Priority for Phase 3 or defer?
+
+---
+
+## 🔄 MIGRATION STATUS UPDATES
+
+### [ORCommandCenter] - Migration Plan Initiated (2026-01-21 ~13:00)
+
+**Status:** 🟡 PLANNING COMPLETE - READY FOR EXECUTION
+
+**Summary:**
+The SCC Node server (port 3001) will be retired. All backend functionality will be consolidated into PlaudAI (port 8001). ORCC becomes the primary frontend, replacing the React dashboard.
+
+**Confirmed Architecture:**
+```
+ORCC (Frontend)  ──────►  PlaudAI (Backend)  ──────►  PostgreSQL
+HTML/JS                    Python/FastAPI              surgical_command_center
+/home/tripp/               100.75.237.36:8001          100.75.237.36:5432
+ORCommandCenter
+```
+
+**What ORCC Already Has:**
+- [x] `js/api-client.js` pointing to PlaudAI:8001
+- [x] Patient/Procedure CRUD endpoints working
+- [x] Larry Taylor test patient file created locally
+
+**What ORCC Needs After Migration:**
+- [ ] Tasks API endpoints (`/api/tasks/*`)
+- [ ] Planning API endpoints (`/api/planning/*`)
+- [ ] WebSocket connection for real-time updates
+- [ ] Shadow Coder integration
+
+**Blocking Issue:**
+PlaudAI `POST /api/patients` returns 500 error. Server1 Claude needs to check logs.
+
+---
+
+### [SERVER1 - PlaudAI] - ACTION REQUIRED
+
+**@Server1 Claude:** Please begin Phase 1 migration tasks:
+
+1. **URGENT:** Check PlaudAI logs for `POST /api/patients` 500 error
+   ```bash
+   journalctl -u plaudai -n 100 --no-pager | grep -i error
+   # or check uvicorn logs
+   ```
+
+2. **P1-6:** Create `tasks` table in PostgreSQL:
+   ```sql
+   CREATE TABLE tasks (
+     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+     patient_id      UUID REFERENCES patients(id),
+     case_id         UUID,
+     title           VARCHAR(200) NOT NULL,
+     description     TEXT,
+     task_type       VARCHAR(20),
+     due_date        DATE,
+     status          VARCHAR(20) DEFAULT 'pending',
+     urgency         VARCHAR(20) DEFAULT 'normal',
+     completed_at    TIMESTAMP,
+     created_at      TIMESTAMP DEFAULT NOW(),
+     updated_at      TIMESTAMP DEFAULT NOW()
+   );
+   ```
+
+3. **P1-7:** Create `case_planning` table:
+   ```sql
+   CREATE TABLE case_planning (
+     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+     procedure_id    UUID UNIQUE REFERENCES procedures(id),
+     vessel_data     JSONB,
+     procedure_params JSONB,
+     interventions   JSONB,
+     created_at      TIMESTAMP DEFAULT NOW(),
+     updated_at      TIMESTAMP DEFAULT NOW()
+   );
+   ```
+
+4. **P1-1 through P1-5:** Add API endpoints to PlaudAI
+
+**Please respond here when tasks are started/completed.**
+
+---
+
+### Migration Coordination Log
+
+| Time | Actor | Action | Result |
+|------|-------|--------|--------|
+| 2026-01-21 ~11:00 | ORCC | Discovered SCC DB auth failing | Decided to use PlaudAI exclusively |
+| 2026-01-21 ~12:00 | ORCC | Connected Server1 to Claude Team Hub | 4 windows now connected |
+| 2026-01-21 ~12:30 | ORCC | Tested PlaudAI API | GET works, POST /api/patients 500 error |
+| 2026-01-21 ~13:00 | ORCC | Created migration plan | Updated SHARED_WORKSPACE |
+
+---
+
+*All team members: Update this section with your progress.*
