@@ -1481,6 +1481,205 @@ ultralinq should update their code to call port **8080** instead of 3001 or 3002
 
 ---
 
+---
+
+## 🏥 ORCC INTEGRATION TASK (2026-01-20)
+
+### NEW PROJECT: OR Command Center (ORCC)
+
+**Path:** `/home/tripp/ORCommandCenter`
+**Status:** UI Prototype ready for backend integration
+**Purpose:** Vascular surgery case planning and operative documentation
+
+### Architecture
+
+```
+ORCC (UI Prototype)              SCC (Backend)
+─────────────────────            ─────────────────────
+11 HTML files                    Node.js + Express
+~13,000 lines                    PostgreSQL (Sequelize)
+localStorage                     /api/patients, /api/procedures
+Hardcoded patients        ───►   Real patient data
+Mock NLP                  ───►   VAI/Gemini AI
+```
+
+### REAL PATIENT TEST CASE: Larry Taylor
+
+**MRN:** 32016089
+**DOB:** 1954-10-28 (71yo M)
+**Case Date:** 2026-01-20
+**Procedure:** Left Lower Extremity Arteriogram + Popliteal Atherectomy/Angioplasty
+
+### Data Structure Alignment
+
+**ORCC localStorage** → **SCC Sequelize Models**
+
+| ORCC Field | SCC Patient.js | SCC Procedure.js |
+|------------|----------------|------------------|
+| `mrn` | `mrn` ✅ | `mrn` ✅ |
+| `name` | `first_name` + `last_name` | `patient_name` |
+| `dob` | `date_of_birth` | `dob` |
+| `age` | `age` | `age` |
+| `allergies` | `allergies` ✅ | - |
+| `medications` | `current_medications` | - |
+| `medical_history` | `medical_history` | - |
+| `procedure` | - | `procedure_type` |
+| `dos` | - | `procedure_date` |
+| `laterality` | - | `procedure_side` ✅ |
+| `access_site` | - | `access_site` ✅ |
+| `sheath_size` | - | `sheath_size` ✅ |
+| `closure_method` | - | `closure_method` ✅ |
+| `vessel_findings` | - | JSONB columns ✅ |
+
+### SCC Schema Already Supports ORCC Needs!
+
+The existing `Procedure.js` model has:
+- ✅ Vessel JSONB columns (common_iliac through peroneal)
+- ✅ Access site, sheath size, closure method
+- ✅ Procedure side (left/right/bilateral)
+- ✅ Status workflow (draft → in_progress → completed → finalized)
+- ✅ UltraLinq and Athena data integration fields
+
+### What SCC Needs to Add
+
+For full ORCC support, SCC backend should add:
+
+```javascript
+// 1. Problem list / diagnoses (separate table or JSONB)
+diagnoses: {
+  type: DataTypes.JSONB,
+  defaultValue: []  // [{icd10: "I70.25", description: "...", laterality: "left"}]
+}
+
+// 2. Surgical history (separate table or JSONB)
+surgical_history: {
+  type: DataTypes.JSONB,
+  defaultValue: []  // [{date, procedure, cpt, surgeon, laterality}]
+}
+
+// 3. Rutherford classification (for PAD cases)
+rutherford_class: {
+  type: DataTypes.STRING  // "r1" through "r6"
+}
+
+// 4. Anesthesia type
+anesthesia_type: {
+  type: DataTypes.STRING  // "mac_local", "moderate", "general"
+}
+
+// 5. Interventions performed (array)
+interventions: {
+  type: DataTypes.JSONB,
+  defaultValue: []  // [{vessel, intervention, device, balloon_size}]
+}
+
+// 6. Result/outcome
+result: {
+  type: DataTypes.JSONB,
+  defaultValue: {}  // {residual_stenosis, outcome, doppler_signal}
+}
+```
+
+### Larry Taylor Case - Mapped to SCC Schema
+
+```javascript
+// POST /api/patients
+{
+  "mrn": "32016089",
+  "first_name": "Larry",
+  "last_name": "Taylor",
+  "date_of_birth": "1954-10-28",
+  "age": 71,
+  "gender": "male",
+  "allergies": "NKDA",
+  "current_medications": "aspirin, clopidogrel, Janumet XR, Jardiance, losartan, rosuvastatin, Santyl",
+  "medical_history": "CHF, DM2, HTN, heart disease, former smoker"
+}
+
+// POST /api/procedures
+{
+  "mrn": "32016089",
+  "patient_name": "Taylor, Larry",
+  "dob": "1954-10-28",
+  "age": 71,
+  "procedure_type": "Lower Extremity Arteriogram + Atherectomy + Angioplasty",
+  "procedure_date": "2026-01-20",
+  "surgeon": "Joe Harris Morgan III, MD",
+  "procedure_side": "left",
+  "access_site": "right CFA",
+  "sheath_size": "6F, 45cm",
+  "closure_method": "closure device",
+
+  // Vessel findings
+  "popliteal": {
+    "status": "stenosis",
+    "stenosis_p1": ">70%",
+    "stenosis_mid": ">80%",
+    "calcification": "severe",
+    "treatment": ["atherectomy", "angioplasty"],
+    "device": "2.0 burr",
+    "balloon": "6mm x 24cm",
+    "result": "<30% residual"
+  },
+  "posterior_tibial": {
+    "status": "occluded",
+    "location": "mid leg"
+  },
+  "anterior_tibial": {
+    "status": "patent"
+  },
+  "peroneal": {
+    "status": "patent"
+  },
+
+  // New fields needed
+  "diagnoses": [
+    {"icd10": "I70.25", "description": "PAD with wound"},
+    {"icd10": "M86.672", "description": "Chronic osteomyelitis, left foot"}
+  ],
+  "interventions": [
+    {"vessel": "popliteal", "type": "atherectomy", "device": "2.0 burr"},
+    {"vessel": "popliteal", "type": "angioplasty", "balloon": "6mm x 24cm"}
+  ],
+  "result": {
+    "residual_stenosis": "<30%",
+    "outcome": "good",
+    "doppler_dp": "biphasic",
+    "complications": "none"
+  },
+  "status": "completed"
+}
+```
+
+### ACTION ITEMS
+
+**For SCC Backend (Larry):**
+1. [ ] Review proposed schema additions above
+2. [ ] Add `diagnoses` JSONB field to Procedure model
+3. [ ] Add `interventions` JSONB field to Procedure model
+4. [ ] Add `result` JSONB field to Procedure model
+5. [ ] Confirm API endpoints can accept this data structure
+
+**For ORCC (this window):**
+1. [ ] Create API service layer to replace localStorage
+2. [ ] Map localStorage keys to API calls
+3. [ ] Test with Larry Taylor as first real patient
+
+### Files Created
+
+| File | Location | Purpose |
+|------|----------|---------|
+| `PATIENT_DATA_SPEC.md` | `/home/tripp/ORCommandCenter/` | Complete data spec with Larry Taylor example |
+| `DATA_FLOW_MAPPING.md` | `/home/tripp/ORCommandCenter/` | UI data flow documentation |
+
+### Questions for SCC Team
+
+1. Is the existing `Procedure.js` vessel JSONB structure flexible enough for detailed findings?
+2. Should diagnoses be a separate table (normalized) or JSONB in procedures (denormalized)?
+3. What's the preferred way to handle surgical history - separate table or patient JSONB?
+
+---
+
 ## 📊 CURRENT LIVE STATUS (2026-01-16 21:00)
 
 ### Services Health Check
