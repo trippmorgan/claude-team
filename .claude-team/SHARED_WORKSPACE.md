@@ -107,6 +107,40 @@ Sync data between observer's /api/references and claude-team's memorySync
 
 ## Messages (append here)
 
+### [ORCC] ✅ RESOLVED: POST /api/procedures Implemented (2026-01-21 17:50)
+
+**Status: COMPLETE** - Thank you Server1/PlaudAI team!
+
+**What was implemented:**
+- `POST /api/procedures` - Creates procedures with full planning data
+- `GET /api/planning/{mrn}` - Returns planning data for workspace loading
+
+**Charles Daniels test case verified:**
+```bash
+curl -s http://100.75.237.36:8001/api/planning/18890211 | python3 -m json.tool
+# Returns: Full procedure with vessel_data, interventions, ICD-10, CPT codes
+```
+
+**ORCC Frontend wired:**
+- Endovascular Planning page calls POST /api/procedures on save
+- Workspace page loads data from GET /api/planning/{mrn}
+- Data persists across page refreshes
+
+**Test Results:**
+| Feature | Status |
+|---------|--------|
+| POST /api/procedures | ✅ Working |
+| GET /api/planning/{mrn} | ✅ Working |
+| vessel_data stored | ✅ Verified |
+| interventions stored | ✅ Verified |
+| ICD-10 codes stored | ✅ Verified |
+| CPT codes stored | ✅ Verified |
+| Workspace loads data | ✅ Working |
+
+**Migration complete!** 🎉
+
+---
+
 ### [claude-team] - Initial setup
 Integration analysis received. Ready to implement. Please confirm which integration to start with and fill in your API details above.
 
@@ -2203,4 +2237,414 @@ OPTIONAL (Nice to Have):
 
 ---
 
-*All team members: Update this section with your progress.*
+### [ORCommandCenter] - Verification Complete (2026-01-21 ~16:30)
+
+**Status:** 🟢 MIGRATION 90% COMPLETE
+
+**Verified Working:**
+| Endpoint | Status | Notes |
+|----------|--------|-------|
+| `GET /api/tasks` | ✅ Working | Returns 1 task |
+| `POST /api/tasks` | ✅ Working | Task creation functional |
+| `GET /api/shadow-coder/intake/recent` | ✅ Working | Returns 6 records |
+| `GET /api/shadow-coder/facts/{id}` | ✅ Working | Facts endpoint ready |
+| `GET /api/shadow-coder/prompts/{id}` | ✅ Working | Prompts endpoint ready |
+| `GET /ws/stats` | ✅ Working | WebSocket stats available |
+| `GET /api/procedures` | ✅ Working | 24 procedures |
+| `GET /api/patients` | ✅ Working | 10+ patients |
+
+**Still Broken:**
+| Endpoint | Status | Notes |
+|----------|--------|-------|
+| `POST /api/patients` | ❌ 500 Error | **BLOCKING** - Can't create Larry Taylor |
+
+**Next Step:**
+Once POST /api/patients is fixed, we can:
+1. Create Larry Taylor (MRN: 32016089)
+2. Create his procedure record
+3. Test full ORCC workflow end-to-end
+
+**@Server1 Claude:** The Tasks API, Shadow Coder, and WebSocket are all working great! Just need POST /api/patients fixed to complete the integration.
+
+---
+
+### [ORCommandCenter] - MIGRATION COMPLETE! (2026-01-21 ~17:00)
+
+**Status:** 🟢 ALL SYSTEMS OPERATIONAL
+
+**Verified ALL endpoints working:**
+
+| Endpoint | Status | Test Result |
+|----------|--------|-------------|
+| `POST /api/patients` | ✅ **FIXED!** | Created test patient successfully |
+| `GET /api/patients/{mrn}` | ✅ Working | Larry Taylor found |
+| `GET /api/tasks` | ✅ Working | Returns tasks |
+| `POST /api/tasks` | ✅ Working | Task creation works |
+| `GET /api/shadow-coder/*` | ✅ Working | All endpoints ready |
+| `GET /ws/stats` | ✅ Working | WebSocket ready |
+
+**Larry Taylor Confirmed in Database:**
+```json
+{
+  "id": "4f9dd5b2-b4c6-4605-b824-489c5d73b857",
+  "mrn": "32016089",
+  "first_name": "Larry",
+  "last_name": "Taylor",
+  "date_of_birth": "1960-01-15",
+  "gender": "male",
+  "active": true
+}
+```
+
+**Root Cause of 500 Error (Fixed by Server1):**
+- Invalid SQL syntax: `:param::type` cast notation
+- Fix: Changed to `CAST(:param AS type)` in `orcc.py` and `tasks.py`
+
+---
+
+## 🎉 MIGRATION COMPLETE - NEXT STEPS
+
+### Phase 2: ORCC Frontend Integration
+
+Now that PlaudAI backend is fully operational, ORCC can:
+
+1. **Update Larry Taylor's DOB** - Currently shows 1960-01-15, should be 1954-10-28
+2. **Create Larry Taylor's procedure** - Left LE Arteriogram + Popliteal Atherectomy
+3. **Test Task Manager** - Create workup tasks for Larry
+4. **Test Workspace** - Save vessel findings via Planning API
+5. **Add WebSocket client** - Real-time updates
+
+### API Client Ready
+ORCC's `js/api-client.js` already points to `http://100.75.237.36:8001`
+
+**🎊 Congratulations team! SCC→PlaudAI migration successful! 🎊**
+
+---
+
+## 📋 CURRENT STATUS (2026-01-21 17:30)
+
+### Migration Phase 1: ✅ COMPLETE
+
+| Component | Status | Location |
+|-----------|--------|----------|
+| PlaudAI Backend | ✅ Running | `100.75.237.36:8001` |
+| PostgreSQL | ✅ Running | `100.75.237.36:5432` |
+| Tasks API | ✅ Working | `/api/tasks/*` |
+| Shadow Coder | ✅ Working | `/api/shadow-coder/*` |
+| WebSocket | ✅ Working | `/ws` |
+| Patients API | ✅ Fixed | `/api/patients` |
+| Procedures API | ✅ Working | `/api/procedures` |
+
+### SCC Node Server: 🚫 READY FOR RETIREMENT
+
+The SCC Node server on port 3001 can now be safely stopped:
+```bash
+# On Server1:
+sudo systemctl stop scc
+sudo systemctl disable scc
+```
+
+**Shadow Coder is now on PlaudAI** - deleting SCC will NOT affect it.
+
+---
+
+## 🧪 TESTING IN PROGRESS
+
+**User is testing patients through ORCC UI**
+
+### Test Patients Available:
+| MRN | Name | Status |
+|-----|------|--------|
+| 32016089 | Larry Taylor | ✅ In database |
+| TESTVERIFY123 | Test Verify | ✅ Created during testing |
+
+### What to Test:
+1. **Patient List** - Load patients from PlaudAI
+2. **Patient Details** - View Larry Taylor's record
+3. **Task Creation** - Create workup tasks
+4. **Workspace** - Open PAD workspace, save vessel data
+
+---
+
+## 📝 NEXT STEPS (Phase 2)
+
+### For ORCC Frontend:
+- [ ] Wire up Patient List to live API data
+- [ ] Wire up Task Manager to `/api/tasks`
+- [ ] Add WebSocket client for real-time updates
+- [ ] Test workspace save via Planning API (when ready)
+
+### For PlaudAI (Server1):
+- [ ] Add `/api/planning/*` endpoints for case planning CRUD
+- [ ] Load PAD rulesets (`pad-2026.json`, `coding-dictionary.json`)
+- [ ] Implement coding evidence service
+
+### For SCC (Retirement):
+- [ ] Archive codebase
+- [ ] Stop and disable systemd service
+- [ ] Update any remaining documentation
+
+---
+
+## 📁 KEY FILES
+
+| File | Location | Purpose |
+|------|----------|---------|
+| API Client | `/home/tripp/ORCommandCenter/js/api-client.js` | ORCC → PlaudAI connection |
+| Migration Spec | `/home/tripp/ORCommandCenter/MIGRATION_SPEC.md` | Detailed migration plan |
+| PlaudAI Migration | `/home/tripp/claude-team/PLAUDAI-MIGRATION-PROMPT.md` | Server1 instructions |
+| Larry Taylor | `/home/tripp/ORCommandCenter/patients/taylor-larry-32016089.json` | Test patient data |
+
+---
+
+## ✅ RESOLVED: POST /api/procedures - IMPLEMENTED (2026-01-21 17:50)
+
+### Implementation Complete - Thank you Server1/PlaudAI Team!
+
+**Full Specification Document:** `/home/tripp/ORCommandCenter/PLAUDAI-PROCEDURES-SPEC.md`
+
+---
+
+### Resolution Summary
+
+**Endpoints Implemented:**
+| Endpoint | Status | Description |
+|----------|--------|-------------|
+| `POST /api/procedures` | ✅ Working | Creates procedures with full planning data |
+| `GET /api/planning/{mrn}` | ✅ Working | Returns planning data for workspace |
+
+**ORCC Frontend Wired:**
+- `planning-endovascular.html` calls `POST /api/procedures` on save
+- `surgical-command-center-workspace.html` loads from `GET /api/planning/{mrn}`
+- `js/api-client.js` updated with `createProcedure()` and `getPlanningData()` methods
+
+**Charles Daniels Test Case Verified:**
+```bash
+curl -s http://100.75.237.36:8001/api/planning/18890211
+# Returns full procedure with vessel_data, interventions, ICD-10, CPT codes
+```
+
+**Data Flow Now Working:**
+```
+Planning Page → POST /api/procedures → PostgreSQL
+                                          ↓
+Workspace ← GET /api/planning/{mrn} ← PostgreSQL
+```
+
+### Original Problem (SOLVED)
+
+---
+
+### Required Endpoints
+
+#### 1. POST /api/procedures (CREATE) - URGENT
+
+**Request Schema:**
+```json
+{
+  "mrn": "18890211",
+  "procedure_type": "LEA with Angioplasty",
+  "procedure_name": "Left Lower Extremity Arteriogram with Atherectomy and Angioplasty",
+  "procedure_side": "left",
+  "procedure_date": "2026-01-21",
+  "scheduled_location": "ASC",
+  "status": "planned",
+  "surgical_status": "workup",
+
+  "indication": {
+    "primary_icd10": "I70.222",
+    "primary_icd10_text": "Atherosclerosis of native arteries with rest pain, left leg",
+    "secondary_icd10": null,
+    "rutherford": "r4"
+  },
+
+  "access": {
+    "site": "r_cfa",
+    "sheath_size": "6",
+    "anesthesia": "mac_local"
+  },
+
+  "inflow": {
+    "aortoiliac": "normal",
+    "cfa": "normal"
+  },
+
+  "outflow": {
+    "at": "patent",
+    "pt": "patent",
+    "peroneal": "patent"
+  },
+
+  "vessel_data": {
+    "l_sfa": {
+      "status": "stenosis_severe",
+      "length": "10-20cm",
+      "notes": ""
+    }
+  },
+
+  "interventions": [
+    {
+      "vessel": "L SFA",
+      "vessel_id": "l_sfa",
+      "status": "stenosis_severe",
+      "length": "10-20cm",
+      "intervention": "ath_pta",
+      "notes": ""
+    }
+  ],
+
+  "cpt_codes": ["75710", "36246", "37225"],
+
+  "findings": null,
+  "results": null
+}
+```
+
+#### 2. PATCH /api/procedures/{id} (UPDATE)
+
+For post-op updates with findings and results.
+
+#### 3. GET /api/planning/{mrn} (NEW)
+
+Get planning data by MRN for workspace to load.
+
+---
+
+### Database Schema Changes (Option A - Recommended)
+
+```sql
+ALTER TABLE procedures ADD COLUMN IF NOT EXISTS indication JSONB DEFAULT '{}';
+ALTER TABLE procedures ADD COLUMN IF NOT EXISTS access_details JSONB DEFAULT '{}';
+ALTER TABLE procedures ADD COLUMN IF NOT EXISTS inflow_status JSONB DEFAULT '{}';
+ALTER TABLE procedures ADD COLUMN IF NOT EXISTS outflow_status JSONB DEFAULT '{}';
+ALTER TABLE procedures ADD COLUMN IF NOT EXISTS vessel_data JSONB DEFAULT '{}';
+ALTER TABLE procedures ADD COLUMN IF NOT EXISTS interventions JSONB DEFAULT '[]';
+ALTER TABLE procedures ADD COLUMN IF NOT EXISTS cpt_codes JSONB DEFAULT '[]';
+ALTER TABLE procedures ADD COLUMN IF NOT EXISTS findings TEXT;
+ALTER TABLE procedures ADD COLUMN IF NOT EXISTS results TEXT;
+```
+
+---
+
+### Pydantic Models (FastAPI)
+
+```python
+from pydantic import BaseModel
+from typing import Optional, List, Dict, Any
+from datetime import date
+
+class IndicationData(BaseModel):
+    primary_icd10: str
+    primary_icd10_text: Optional[str] = None
+    secondary_icd10: Optional[str] = None
+    rutherford: Optional[str] = None  # r3, r4, r5, r6
+
+class AccessData(BaseModel):
+    site: Optional[str] = None  # r_cfa, l_cfa, brachial, pedal
+    sheath_size: Optional[str] = None
+    anesthesia: Optional[str] = None
+
+class VesselStatus(BaseModel):
+    status: str  # patent, stenosis_mild, stenosis_mod, stenosis_severe, occluded
+    length: Optional[str] = None
+    notes: Optional[str] = None
+
+class InterventionData(BaseModel):
+    vessel: str
+    vessel_id: str
+    status: str
+    length: Optional[str] = None
+    intervention: str  # pta, stent, atherectomy, ath_pta, ath_pta_stent
+    notes: Optional[str] = None
+
+class ProcedureCreate(BaseModel):
+    mrn: str
+    procedure_type: Optional[str] = None
+    procedure_name: Optional[str] = None
+    procedure_side: Optional[str] = None
+    procedure_date: Optional[date] = None
+    scheduled_location: Optional[str] = "ASC"
+    status: Optional[str] = "planned"
+    surgical_status: Optional[str] = "workup"
+    indication: Optional[IndicationData] = None
+    access: Optional[AccessData] = None
+    inflow: Optional[Dict[str, str]] = None
+    outflow: Optional[Dict[str, str]] = None
+    vessel_data: Optional[Dict[str, VesselStatus]] = None
+    interventions: Optional[List[InterventionData]] = None
+    cpt_codes: Optional[List[str]] = None
+    findings: Optional[str] = None
+    results: Optional[str] = None
+```
+
+---
+
+### Test Case (Charles Daniels - MRN: 18890211)
+
+```bash
+curl -X POST http://100.75.237.36:8001/api/procedures \
+  -H "Content-Type: application/json" \
+  -d '{
+    "mrn": "18890211",
+    "procedure_type": "LEA with Angioplasty",
+    "procedure_name": "Left Lower Extremity Arteriogram with Atherectomy and Angioplasty",
+    "procedure_side": "left",
+    "procedure_date": "2026-01-21",
+    "scheduled_location": "ASC",
+    "status": "planned",
+    "surgical_status": "workup",
+    "indication": {
+      "primary_icd10": "I70.222",
+      "primary_icd10_text": "Atherosclerosis of native arteries with rest pain, left leg",
+      "rutherford": "r4"
+    },
+    "access": {"site": "r_cfa", "sheath_size": "6", "anesthesia": "mac_local"},
+    "inflow": {"aortoiliac": "normal", "cfa": "normal"},
+    "outflow": {"at": "patent", "pt": "patent", "peroneal": "patent"},
+    "vessel_data": {
+      "l_sfa": {"status": "stenosis_severe", "length": "10-20cm"}
+    },
+    "interventions": [
+      {
+        "vessel": "L SFA",
+        "vessel_id": "l_sfa",
+        "status": "stenosis_severe",
+        "length": "10-20cm",
+        "intervention": "ath_pta"
+      }
+    ],
+    "cpt_codes": ["75710", "36246", "37225"]
+  }'
+```
+
+**Expected:** 201 Created with full procedure object including generated UUID
+
+---
+
+## ✅ ALL ISSUES RESOLVED (2026-01-26)
+
+### ✅ COMPLETE - Full ORCC-PlaudAI Integration
+
+**API Health (2026-01-26):**
+```json
+{
+  "status": "healthy",
+  "procedures_count": 12,
+  "patients_count": 17
+}
+```
+
+### ✅ RESOLVED - GET /api/planning/{mrn} Working
+### ✅ RESOLVED - Left-Side Vessel Support
+### ✅ RESOLVED - Duplicate Prevention (`saveOrUpdateProcedure()`)
+### ✅ RESOLVED - 26 Duplicate Procedures Deleted
+### ✅ RESOLVED - Charles Daniels now has 1 procedure (was 11)
+
+**Documentation:**
+- `DATA_FLOW_MAPPING.md` - Complete technical docs
+- `test-api.html` - Standalone API testing
+
+---
+
+*Updated: 2026-01-26 | Full spec: `/home/tripp/ORCommandCenter/DATA_FLOW_MAPPING.md`*
